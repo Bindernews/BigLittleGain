@@ -18,3 +18,9 @@ decrease on the coarse gain because the plugin is loud.
 
 The Fine Range slider controls the minimum and maximum values of Fine Gain, so you can get those
 precise automation clips.
+
+# Installation
+Download the latest release from the [releases page](https://github.com/Bindernews/BigLittleGain/releases/) and extract the zip file. Copy `BigLittleGain.vst3` to `C:\Program Files\Common Files\VST3` to install the VST3 version or copy `BigLittleGain_x64.dll` (for 64-bit users) or `BigLittleGain_Win32.dll` (for 32-bit users) to your VST plugins folder.
+
+# License
+The source code is released under the MIT License (see LICENSE.txt) and you may use this plugin free of charge for any purpose, commercial or non-commercial.
