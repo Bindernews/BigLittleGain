@@ -1,0 +1,3 @@
+[submodule "iPlug2"]
+	path = iPlug2
+	url = git@github.com:Bindernews/iPlug2.git
