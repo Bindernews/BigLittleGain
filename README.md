@@ -11,12 +11,13 @@ gain knob is useful for volume effects, where you only want to change the volume
 I wanted to make a neat volume effect, but all the compressors I have go from -70 dB to 30 dB,
 or have equally large ranges. When I wanted a sine wave that went from +2 to -2 dB, it looked like a flat line.
 
-Here's a demo of Big.Little.Gain where I have a sine wave automating the fine gain, and a
-decrease on the coarse gain because the plugin is loud.
+Here's a demo of Big.Little.Gain where I have a sine wave automating the fine gain and a linear
+envelope on the coarse gain to slowly increase the volume of the sound. This give an interesting
+"pumping" effect while fading in the sound, which is harder to achieve using other volume plugins.
 
 ![Demo 1](./images/demo-1.gif)
 
-The Fine Range slider controls the minimum and maximum values of Fine Gain, so you can get those
+The range sliders control the minimum and maximum values of each gain knob so you can get more
 precise automation clips.
 
 # Installation
