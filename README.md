@@ -21,7 +21,17 @@ The range sliders control the minimum and maximum values of each gain knob so yo
 precise automation clips.
 
 # Installation
-Download the latest release from the [releases page](https://github.com/Bindernews/BigLittleGain/releases/) and extract the zip file. Copy `BigLittleGain.vst3` to `C:\Program Files\Common Files\VST3` to install the VST3 version or copy `BigLittleGain_x64.dll` (for 64-bit users) or `BigLittleGain_Win32.dll` (for 32-bit users) to your VST plugins folder.
+Download the latest release from the [releases page](https://github.com/Bindernews/BigLittleGain/releases/) and extract the zip file.
+
+### MacOS - VST3
+Copy `BigLittleGain.vst3` to `~/Library/Audio/Plug-Ins/VST3`
+### MacOS - Audio Unit
+Copy `BigLittleGain.component` to `~/Library/Audio/Plug-Ins/Components`
+
+### Windows - VST3
+Copy `BigLittleGain.vst3` to `C:\Program Files\Common Files\VST3`
+### Windows - VST2
+Copy `BigLittleGain_x64.dll` (for 64-bit users) or `BigLittleGain_Win32.dll` (for 32-bit users) to your VST plugins folder.
 
 # License
 The source code is released under the MIT License (see LICENSE.txt) and you may use this plugin free of charge for any purpose, commercial or non-commercial.
