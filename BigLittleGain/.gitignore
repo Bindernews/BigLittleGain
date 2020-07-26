@@ -21,3 +21,7 @@ gui/*
 
 Icon?
 .DS_Stor*
+
+# Reaper extra files
+*.RPP-UNDO
+*.RPP-bak

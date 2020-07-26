@@ -8,8 +8,20 @@ enum EParams
 {
   kPCoarse = 0,
   kPFine,
-  kPRange,
+  kPCoarseRange,
+  kPFineRange,
   kNumParams
+};
+
+enum EControls
+{
+  kCtrlBigKnob = 0,
+  kCtrlBigSlider,
+  kCtrlLittleKnob,
+  kCtrlLittleSlider,
+  kCtrlTitleCoarse,
+  kCtrlTitleFine,
+  kNumControls,
 };
 
 using namespace iplug;
@@ -21,11 +33,11 @@ public:
   BigLittleGain(const InstanceInfo& info);
 
   double GetFineAtomic() const;
+  double GetCoarseAtomic() const;
 
 #if IPLUG_EDITOR
-  /** Number of times the user has clicked the title button. */
-  int mClickCount = 0;
   void OnParamChangeUI(int paramIdx, EParamSource source) override;
+  void ReInitKnob(int paramIdx, int controlTag, EParamSource source, const char* name, double range);
 #endif
 
 #if IPLUG_DSP // http://bit.ly/2S64BDd

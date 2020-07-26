@@ -53,9 +53,10 @@ public:
 BigLittleGain::BigLittleGain(const InstanceInfo& info)
 : Plugin(info, MakeConfig(kNumParams, kNumPresets))
 {
-  GetParam(kPCoarse)->InitDouble("Coarse Gain", 0.0, -150, 150, 1, "dB", IParam::kFlagStepped, "", IParam::ShapeLinear(), IParam::kUnitLinearGain);
+  GetParam(kPCoarse)->InitDouble("Coarse Gain", 0.0, -50, 50, 1, "dB", IParam::kFlagStepped, "", IParam::ShapeLinear(), IParam::kUnitLinearGain);
+  GetParam(kPCoarseRange)->InitDouble("Coarse Range", 50, 10, 150, 0.1, "dB", IParam::kFlagMeta);
   GetParam(kPFine)->InitDouble("Fine Gain", 0, -4, 4, 0.1, "dB", IParam::kFlagsNone, "", IParam::ShapeLinear(), IParam::kUnitLinearGain);
-  GetParam(kPRange)->InitDouble("Fine Range", 4, 1, 50, 0.1, "dB", IParam::kFlagMeta);
+  GetParam(kPFineRange)->InitDouble("Fine Range", 4, 1, 50, 0.1, "dB", IParam::kFlagMeta);
 
 #if IPLUG_EDITOR // http://bit.ly/2S64BDd
   mMakeGraphicsFunc = [&]() {
@@ -67,13 +68,32 @@ BigLittleGain::BigLittleGain(const InstanceInfo& info)
     ui->AttachPanelBackground(COLOR_BG_1);
     ui->LoadFont("Roboto-Regular", ROBOTO_FN);
 
+    const float TITLE_H = 40;
     const float ROW1_H = 100;
     const float ROW2_H = 24;
     const float PAD = 8;
 
     const IRECT b = ui->GetBounds();
-    const IRECT r1 = b.GetFromTop(ROW1_H).GetPadded(-PAD);
+    const IRECT rTitle = b.GetFromTop(60).GetPadded(-PAD);
+    const IRECT r1 = b.GetFromTop(ROW1_H).GetVShifted(TITLE_H);
     const IRECT r2 = b.GetFromBottom(ROW2_H + PAD).GetPadded(-PAD);
+    const IRECT r1Coarse = r1.GetGridCell(0, 1, 2).GetReducedFromRight(PAD * 2);
+    const IRECT r1Fine = r1.GetGridCell(1, 1, 2).GetReducedFromLeft(PAD * 2);
+    const IRECT separatorR = r1.GetMidHPadded(PAD / 2).GetVPadded(PAD);
+
+    const auto styleTitle = DEFAULT_STYLE
+      .WithDrawFrame(false)
+      .WithDrawShadows(false)
+      .WithValueText(DEFAULT_STYLE.labelText.WithFGColor(COLOR_TEXT).WithSize(20.0f))
+      ;
+    auto titleLabelCoarse = new IVLabelControl(rTitle.GetGridCell(0, 1, 2), "Coarse", styleTitle);
+    auto titleLabelFine = new IVLabelControl(rTitle.GetGridCell(1, 1, 2), "Fine", styleTitle);
+
+    const auto separatorStyle = DEFAULT_STYLE
+      .WithColor(EVColor::kBG, COLOR_WHITE)
+      .WithDrawFrame(false)
+      .WithRoundness(PAD)
+      ;
 
     const auto style = DEFAULT_STYLE
       .WithColor(EVColor::kFR, COLOR_WHITE)
@@ -83,9 +103,11 @@ BigLittleGain::BigLittleGain(const InstanceInfo& info)
       .WithLabelText(DEFAULT_STYLE.labelText.WithFGColor(COLOR_TEXT))
       .WithValueText(DEFAULT_STYLE.valueText.WithFGColor(COLOR_TEXT).WithSize(16.0f))
       ;
-    auto knobCoarse = new IVKnobControl(r1.GetGridCell(0, 0, 1, 3), kPCoarse, "", style);
-    auto knobFine = new IVKnobControl(r1.GetGridCell(0, 1, 1, 3), kPFine, "", style);
-    auto cRange = new IVSliderControl(r1.GetGridCell(0, 2, 1, 3), kPRange, "", style, true, EDirection::Vertical);
+    auto sliderBigRange = new IVSliderControl(r1Coarse.GetGridCell(0, 1, 2), kPCoarseRange, "Range", style, true, EDirection::Vertical);
+    auto knobCoarse = new IVKnobControl(r1Coarse.GetGridCell(1, 1, 2), kPCoarse, "Gain", style, true);
+    auto separator = new IVLabelControl(separatorR, "", separatorStyle);
+    auto knobFine = new IVKnobControl(r1Fine.GetGridCell(0, 1, 2), kPFine, "Gain", style, true);
+    auto sliderLittleRange = new IVSliderControl(r1Fine.GetGridCell(1, 1, 2), kPFineRange, "Range", style, true, EDirection::Vertical);
 
     const auto styleUrlButton = style
       .WithColor(EVColor::kFG, COLOR_BG_1)
@@ -99,9 +121,13 @@ BigLittleGain::BigLittleGain(const InstanceInfo& info)
     };
     auto textTitle = new TitleButton(r2, /*textTitleAction,*/ "big.little.gain   Copyright (c) BinderNews 2020", styleUrlButton);
 
-    ui->AttachControl(knobCoarse);
-    ui->AttachControl(knobFine);
-    ui->AttachControl(cRange);
+    ui->AttachControl(titleLabelCoarse, kCtrlTitleCoarse);
+    ui->AttachControl(titleLabelFine, kCtrlTitleFine);
+    ui->AttachControl(sliderBigRange, kCtrlBigSlider);
+    ui->AttachControl(separator);
+    ui->AttachControl(knobCoarse, kCtrlBigKnob);
+    ui->AttachControl(knobFine, kCtrlLittleKnob);
+    ui->AttachControl(sliderLittleRange, kCtrlLittleSlider);
     ui->AttachControl(textTitle);
   };
 #endif
@@ -110,15 +136,30 @@ BigLittleGain::BigLittleGain(const InstanceInfo& info)
 #if IPLUG_EDITOR
 void BigLittleGain::OnParamChangeUI(int paramIdx, EParamSource source)
 {
-  switch (paramIdx) {
-  case kPRange:
+  if (paramIdx == kPFineRange) {
     // We re-init the value with the new min and max so the automation shows the correct value in hosts.
-    double vRange = GetParam(kPRange)->Value();
-    GetParam(kPFine)->InitDouble("Fine Gain", 0, -vRange, vRange, 0.1, "dB", IParam::kFlagsNone, "", IParam::ShapeLinear(), IParam::kUnitLinearGain);
-    if (source != EParamSource::kReset) {
-      InformHostOfParameterDetailsChange();
-    }
-    break;
+    double vRange = GetParam(paramIdx)->Value();
+    ReInitKnob(kPFine, kCtrlLittleKnob, source, "Fine Gain", vRange);
+  }
+  else if (paramIdx == kPCoarseRange) {
+    // We re-init the value with the new min and max so the automation shows the correct value in hosts.
+    double vRange = GetParam(paramIdx)->Value();
+    ReInitKnob(kPCoarse, kCtrlBigKnob, source, "Coarse Gain", vRange);
+  }
+}
+
+void BigLittleGain::ReInitKnob(int paramIdx, int controlTag, EParamSource source, const char* name, double range)
+{
+  auto param = GetParam(paramIdx);
+  double norm = param->GetNormalized();
+  param->InitDouble(name, 0, -range, range, 0.1, "dB", IParam::kFlagsNone, "", IParam::ShapeLinear(), IParam::kUnitLinearGain);
+  param->SetNormalized(norm);
+  if (source != EParamSource::kReset) {
+    InformHostOfParameterDetailsChange();
+  }
+  auto ui = GetUI();
+  if (ui) {
+    ui->GetControlWithTag(controlTag)->SetDirty(false);
   }
 }
 #endif
@@ -132,7 +173,7 @@ void BigLittleGain::ProcessBlock(sample** inputs, sample** outputs, int nFrames)
   for (int s = 0; s < nFrames; s += SAMPLE_UPDATE_COUNT) {
     // We update the gain every SAMPLE_UPDATE_COUNT samples. This is done outside the crticial loop
     // to make things easier on the optimizer (instead of an if statement inside the loop).
-    const double gain = DBToAmp(GetParam(kPCoarse)->Value() + GetFineAtomic());
+    const double gain = DBToAmp(GetCoarseAtomic() + GetFineAtomic());
     const int iMax = s + std::min(SAMPLE_UPDATE_COUNT, nFrames - s);
 
     for (int c = 0; c < nChans; c++) {
@@ -148,6 +189,13 @@ void BigLittleGain::ProcessBlock(sample** inputs, sample** outputs, int nFrames)
 double BigLittleGain::GetFineAtomic() const
 {
   double vFine = GetParam(kPFine)->GetNormalized();
-  double vRange = GetParam(kPRange)->Value();
+  double vRange = GetParam(kPFineRange)->Value();
   return Lerp(-vRange, vRange, vFine);
+}
+
+double BigLittleGain::GetCoarseAtomic() const
+{
+  double vKnob = GetParam(kPCoarse)->GetNormalized();
+  double vRange = GetParam(kPCoarseRange)->Value();
+  return Lerp(-vRange, vRange, vKnob);
 }
