@@ -43,7 +43,7 @@
 #define AAX_PLUG_CATEGORY_STR "Effect"
 #define AAX_DOES_AUDIOSUITE 1
 
-#define VST3_SUBCATEGORY "Fx|Mastering"
+#define VST3_SUBCATEGORY "Fx|Gain"
 
 #define APP_NUM_CHANNELS 2
 #define APP_N_VECTOR_WAIT 0
