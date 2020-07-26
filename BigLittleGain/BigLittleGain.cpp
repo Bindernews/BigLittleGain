@@ -173,11 +173,13 @@ void BigLittleGain::ProcessBlock(sample** inputs, sample** outputs, int nFrames)
   for (int s = 0; s < nFrames; s += SAMPLE_UPDATE_COUNT) {
     // We update the gain every SAMPLE_UPDATE_COUNT samples. This is done outside the crticial loop
     // to make things easier on the optimizer (instead of an if statement inside the loop).
-    const double gain = DBToAmp(GetCoarseAtomic() + GetFineAtomic());
+    // Convert to sample type to encourage the compiler to use SIMD for the inner-loop.
+    const sample gain = (sample)DBToAmp(GetCoarseAtomic() + GetFineAtomic());
     const int iMax = s + std::min(SAMPLE_UPDATE_COUNT, nFrames - s);
 
     for (int c = 0; c < nChans; c++) {
       // N.B. This could potentially use SIMD, but that's more effort than I want to spend.
+      // At least on MSVC this does produce SIMD code, through auto-vectorization.
       for (int i = s; i < iMax; i++) {
         outputs[c][i] = inputs[c][i] * gain;
       }
