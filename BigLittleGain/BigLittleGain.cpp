@@ -53,10 +53,10 @@ public:
 BigLittleGain::BigLittleGain(const InstanceInfo& info)
 : Plugin(info, MakeConfig(kNumParams, kNumPresets))
 {
-  GetParam(kPCoarse)->InitDouble("Coarse Gain", 0.0, -50, 50, 1, "dB", IParam::kFlagStepped, "", IParam::ShapeLinear(), IParam::kUnitLinearGain);
-  GetParam(kPCoarseRange)->InitDouble("Coarse Range", 50, 10, 150, 0.1, "dB", IParam::kFlagMeta);
-  GetParam(kPFine)->InitDouble("Fine Gain", 0, -4, 4, 0.1, "dB", IParam::kFlagsNone, "", IParam::ShapeLinear(), IParam::kUnitLinearGain);
-  GetParam(kPFineRange)->InitDouble("Fine Range", 4, 1, 50, 0.1, "dB", IParam::kFlagMeta);
+  GetParam(kPCoarse)->InitDouble("Coarse Gain", 0.0, -50, 50, 1, "dB", IParam::kFlagStepped | IParam::kFlagCannotAutomate, "", IParam::ShapeLinear(), IParam::kUnitLinearGain);
+  GetParam(kPCoarseRange)->InitDouble("Coarse Range", 50, 10, 150, 0.1, "dB", IParam::kFlagMeta | IParam::kFlagCannotAutomate);
+  GetParam(kPFine)->InitDouble("Fine Gain", 0, -4, 4, 0.1, "dB", IParam::kFlagCannotAutomate, "", IParam::ShapeLinear(), IParam::kUnitLinearGain);
+  GetParam(kPFineRange)->InitDouble("Fine Range", 4, 1, 50, 0.1, "dB", IParam::kFlagMeta | IParam::kFlagCannotAutomate);
 
 #if IPLUG_EDITOR // http://bit.ly/2S64BDd
   mMakeGraphicsFunc = [&]() {
