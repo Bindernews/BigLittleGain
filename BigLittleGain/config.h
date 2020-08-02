@@ -38,7 +38,7 @@
 
 #define AAX_TYPE_IDS 'IEF1', 'IEF2'
 #define AAX_TYPE_IDS_AUDIOSUITE 'IEA1', 'IEA2'
-#define AAX_PLUG_MFR_STR "Acme"
+#define AAX_PLUG_MFR_STR "Bndr"
 #define AAX_PLUG_NAME_STR "BigLittleGain\nIPEF"
 #define AAX_PLUG_CATEGORY_STR "Effect"
 #define AAX_DOES_AUDIOSUITE 1

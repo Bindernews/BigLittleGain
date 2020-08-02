@@ -57,6 +57,17 @@ BigLittleGain::BigLittleGain(const InstanceInfo& info)
   GetParam(kPCoarseRange)->InitDouble("Coarse Range", 50, 10, 150, 0.1, "dB", IParam::kFlagMeta);
   GetParam(kPFine)->InitDouble("Fine Gain", 0, -4, 4, 0.1, "dB", IParam::kFlagsNone, "", IParam::ShapeLinear(), IParam::kUnitLinearGain);
   GetParam(kPFineRange)->InitDouble("Fine Range", 4, 1, 50, 0.1, "dB", IParam::kFlagMeta);
+  GetParam(kPHighQuality)->InitBool("High Quality", false, "", IParam::kFlagCannotAutomate, "");
+
+  mParamInfo[kPCoarse] = { true };
+  mParamInfo[kPCoarseRange] = { true };
+  mParamInfo[kPFine] = { true };
+  mParamInfo[kPFineRange] = { true };
+  mParamInfo[kPHighQuality] = { false };
+
+#if IPLUG_DSP
+  mParamRamps = CRP::Create(mParamRampsData);
+#endif
 
 #if IPLUG_EDITOR // http://bit.ly/2S64BDd
   mMakeGraphicsFunc = [&]() {
@@ -165,25 +176,90 @@ void BigLittleGain::ReInitKnob(int paramIdx, int controlTag, EParamSource source
 #endif
 
 #if IPLUG_DSP
+void BigLittleGain::OnReset()
+{
+  mGainBuf.Resize(GetBlockSize());
+  for (int i = 0; i < mParamRampsBuf.size(); i++) {
+    if (mParamInfo[i].hasRamp) {
+      mParamRampsBuf.at(i).Resize(GetBlockSize());
+      ControlRamp& rData = mParamRampsData.at(i);
+      rData.transitionStart = rData.transitionEnd = 0;
+      rData.startValue = rData.endValue = getParamValue(i);
+    }
+  }
+}
+
+void BigLittleGain::OnParamChange(int paramIdx, EParamSource source, int sampleOffset)
+{
+  if (paramIdx >= kNumParams || !mParamInfo[paramIdx].hasRamp) {
+    return;
+  }
+
+  double val = getParamValue(paramIdx);  
+  // Set the param ramp values accordingly
+  if (sampleOffset == -1) {
+    mParamRamps->at(paramIdx).SetTarget(val, 0, GetBlockSize(), GetBlockSize());
+  }
+  else if (sampleOffset == 0) {
+    mParamRampsData.at(paramIdx).endValue = val;
+  }
+  else {
+    mParamRamps->at(paramIdx).SetTarget(val, 0, sampleOffset, GetBlockSize());
+  }
+}
+
 void BigLittleGain::ProcessBlock(sample** inputs, sample** outputs, int nFrames)
 {
-  //const double gain = GetParam(kGain)->Value() / 100.;
   const int nChans = NOutChansConnected();
+  sample* gain_buf = mGainBuf.Get();
 
-  for (int s = 0; s < nFrames; s += SAMPLE_UPDATE_COUNT) {
-    // We update the gain every SAMPLE_UPDATE_COUNT samples. This is done outside the crticial loop
-    // to make things easier on the optimizer (instead of an if statement inside the loop).
-    // Convert to sample type to encourage the compiler to use SIMD for the inner-loop.
-    const sample gain = (sample)DBToAmp(GetCoarseAtomic() + GetFineAtomic());
-    const int iMax = s + std::min(SAMPLE_UPDATE_COUNT, nFrames - s);
-
-    for (int c = 0; c < nChans; c++) {
-      // N.B. This could potentially use SIMD, but that's more effort than I want to spend.
-      // At least on MSVC this does produce SIMD code, through auto-vectorization.
-      for (int i = s; i < iMax; i++) {
-        outputs[c][i] = inputs[c][i] * gain;
+  if (GetParam(kPHighQuality)->Bool()) {
+    // High quality is sample-accurate but takes more time to generate the gain array
+    for (int i = 0; i < kNumParams; i++) {
+      if (mParamInfo[i].hasRamp) {
+        mParamRamps->at(i).Process(nFrames);
+        mParamRampsData.at(i).Write(mParamRampsBuf.at(i).Get(), 0, nFrames);
       }
     }
+    // Now that we have our ramp values, create the gain buffer accordingly
+    auto coarseBuf = mParamRampsBuf[kPCoarse].Get();
+    auto coarseRangeBuf = mParamRampsBuf[kPCoarseRange].Get();
+    auto fineBuf = mParamRampsBuf[kPFine].Get();
+    auto fineRangeBuf = mParamRampsBuf[kPFineRange].Get();
+    for (int i = 0; i < nFrames; i++) {
+      auto cr = coarseRangeBuf[i];
+      auto fr = fineRangeBuf[i];
+      gain_buf[i] = DBToAmp((double)Lerp(-cr, cr, coarseBuf[i]) + (double)Lerp(-fr, fr, fineBuf[i]));
+    }
+  }
+  else {
+    // Low quality is easier on the processor, but not sample-accurate
+    const sample gain = (sample)DBToAmp(GetCoarseAtomic() + GetFineAtomic());
+    for (int i = 0; i < nFrames; i++) {
+      gain_buf[i] = gain;
+    }
+  }
+  
+  // Now we can update the outputs. 
+  for (int c = 0; c < nChans; c++) {
+    // N.B. This could potentially use SIMD, but that's more effort than I want to spend.
+    // At least on MSVC this does produce SIMD code through auto-vectorization.
+    for (int i = 0; i < nFrames; i++) {
+      outputs[c][i] = inputs[c][i] * gain_buf[i];
+    }
+  }
+}
+
+double BigLittleGain::getParamValue(int paramIdx) const
+{
+  switch (paramIdx) {
+  case kPCoarse:
+  case kPFine:
+    return GetParam(paramIdx)->GetNormalized();
+  case kPCoarseRange:
+  case kPFineRange:
+  case kPHighQuality:
+    return GetParam(paramIdx)->Value();
   }
 }
 #endif

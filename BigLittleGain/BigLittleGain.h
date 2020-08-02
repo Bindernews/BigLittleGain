@@ -1,6 +1,7 @@
 #pragma once
 
 #include "IPlug_include_in_plug_hdr.h"
+#include "Extras/Synth/ControlRamp.h"
 
 const int kNumPresets = 1;
 
@@ -10,6 +11,7 @@ enum EParams
   kPFine,
   kPCoarseRange,
   kPFineRange,
+  kPHighQuality,
   kNumParams
 };
 
@@ -30,6 +32,11 @@ using namespace igraphics;
 class BigLittleGain final : public Plugin
 {
 public:
+  struct ParamInfo
+  {
+    bool hasRamp;
+  };
+
   BigLittleGain(const InstanceInfo& info);
 
   double GetFineAtomic() const;
@@ -42,5 +49,17 @@ public:
 
 #if IPLUG_DSP // http://bit.ly/2S64BDd
   void ProcessBlock(sample** inputs, sample** outputs, int nFrames) override;
+  void OnReset() override;
+  void OnParamChange(int paramIdx, EParamSource source, int sampleOffset) override;
+  double getParamValue(int paramIdx) const;
+
+  using CRP = ControlRampProcessor;
+
+  CRP::ProcessorArray<kNumParams>* mParamRamps;
+  CRP::RampArray<kNumParams> mParamRampsData;
+  std::array<WDL_TypedBuf<float>, kNumParams> mParamRampsBuf;
+  WDL_TypedBuf<sample> mGainBuf;
 #endif
+
+  ParamInfo mParamInfo[kNumParams];
 };
