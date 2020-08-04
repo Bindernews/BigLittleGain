@@ -23,6 +23,9 @@ enum EControls
   kCtrlLittleSlider,
   kCtrlTitleCoarse,
   kCtrlTitleFine,
+  kCtrlTitleText,
+  kCtrlMenuButton,
+  kCtrlAbout,
   kNumControls,
 };
 
@@ -45,6 +48,8 @@ public:
 #if IPLUG_EDITOR
   void OnParamChangeUI(int paramIdx, EParamSource source) override;
   void ReInitKnob(int paramIdx, int controlTag, EParamSource source, const char* name, double range);
+
+  IPopupMenu* mMenu;
 #endif
 
 #if IPLUG_DSP // http://bit.ly/2S64BDd

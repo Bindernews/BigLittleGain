@@ -6,7 +6,7 @@
 #define PLUG_MFR_ID 'Bndr'
 #define PLUG_URL_STR "https://iplug2.github.io"
 #define PLUG_EMAIL_STR "spam@me.com"
-#define PLUG_COPYRIGHT_STR "Copyright 2019 Acme Inc"
+#define PLUG_COPYRIGHT_STR "Copyright (c) 2020 Andrew Heintz"
 #define PLUG_CLASS_NAME BigLittleGain
 
 #define BUNDLE_NAME "BigLittleGain"
@@ -52,3 +52,4 @@
 #define APP_SIGNAL_VECTOR_SIZE 64
 
 #define ROBOTO_FN "Roboto-Regular.ttf"
+#define ROBOTO_BOLD_FN "Roboto-Bold.ttf"

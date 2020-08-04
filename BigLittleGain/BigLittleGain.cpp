@@ -1,54 +1,109 @@
 #include "BigLittleGain.h"
 #include "IPlug_include_in_plug_src.h"
 #include "IControls.h"
+#include "IPopupMenuControl.h"
 
 #define PLUGIN_URL "https://github.com/bindernews/BigLittleGain"
 #define SAMPLE_UPDATE_COUNT (128)
-#define DEF_COLOR(name, code) const IColor name = IColor::FromColorCode(code)
-DEF_COLOR(COLOR_BG_2, 0x603F8B); // dark purple
-DEF_COLOR(COLOR_BG_1, 0x695E93); // light purple
-DEF_COLOR(COLOR_TEXT, 0xF9F6F0); // cream
+#define DEF_COLOR(name, code, A) const IColor name = IColor::FromColorCode(code, A)
+DEF_COLOR(COLOR_BG_2, 0x603F8B, 255); // dark purple
+DEF_COLOR(COLOR_BG_1, 0x695E93, 255); // light purple
+DEF_COLOR(COLOR_BG_3, 0x9166cc, 255); // medium purple
+DEF_COLOR(COLOR_TEXT, 0xF9F6F0, 255); // cream
+DEF_COLOR(COLOR_HL,   0xFFFFFF,  10); // transparent white
 
-/** This title button class opens the plugin's homepage URL once it's been double-clicked. */
-class TitleButton : public IVButtonControl
+#define ABOUT_BOX_TEXT "BigLittleGain   " PLUG_COPYRIGHT_STR "\n \n" \
+  "BigLittleGain is a simple volume plugin for both \ngeneral-purpose volume adjustment and for \ncreating volume effects using automation. \n \n" \
+  "Made using iPlug2.\n"
+
+static const std::array<int, 8> VIEW_SIZE_OPTIONS = { 50, 75, 85, 100, 125, 150, 175, 200 };
+
+enum EMenuItems 
 {
-public:
-  TitleButton(const IRECT& bounds, const char* label, const IVStyle& style)
-    : IVButtonControl(bounds, SplashClickActionFunc, label, style)
-  {}
-
-  void OnMouseOut() override
-  {
-    IVButtonControl::OnMouseOut();
-    // Reset click count if the user moves out of the control
-    mClickCount = 0;
-  }
-
-  void OnMouseUp(float x, float y, const IMouseMod& mod) override
-  {
-    IVButtonControl::OnMouseUp(x, y, mod);
-
-    double tm = GetTimestamp();
-    if ((tm < mLastClickTime + mClickTimeout) || (mClickCount == 0)) {
-      mClickCount++;
-    }
-    else {
-      mClickCount = 0;
-    }
-    mLastClickTime = tm;
-
-    if (mClickCount == 2) {
-      GetUI()->OpenURL(PLUGIN_URL);
-    }
-  }
-
-  /** How long before the click count timeout expires. */
-  double mClickTimeout = 1.0 / 4.0;
-  /** Previous click time */
-  double mLastClickTime = 0;
-  int mClickCount = 0;
+  kMenuAbout,
+  kMenuHomepage,
 };
 
+#if IPLUG_EDITOR
+class VSep : public IVectorBase
+           , public IControl
+{
+public:
+  VSep(const IRECT& bounds, const IVStyle& style)
+    : IVectorBase(style), IControl(bounds, SplashClickActionFunc)
+  {
+    AttachIControl(this, "");
+  }
+
+  void Draw(IGraphics& g) override
+  {
+    auto color = mStyle.colorSpec.GetColor(EVColor::kFG);
+    auto rect = mRECT.GetPadded(-1.f);
+    g.FillRect(color, rect);
+    g.DrawRoundRect(color, rect, mStyle.roundness);
+  }
+};
+
+class MenuButton1 : public IVButtonControl
+{
+public:
+  MenuButton1(const IRECT& bounds, IActionFunction aF = SplashClickActionFunc, const IVStyle& style=DEFAULT_STYLE)
+    : IVButtonControl(bounds, aF, "", style, true, true, EVShape::Ellipse)
+  {}
+
+  void DrawWidget(IGraphics& g) override
+  {
+    bool pressed = (bool)GetValue();
+    DrawPressableEllipse(g, mRECT, pressed, mMouseIsOver, IsDisabled());
+    const float rpad = 6;
+    g.FillTriangle(COLOR_TEXT, mRECT.L + rpad, mRECT.T + rpad, mRECT.R - rpad, mRECT.T + rpad, mRECT.MW(), mRECT.B - (rpad));
+  }
+
+  bool IsHit(float x, float y) const override
+  {
+    return mRECT.GetPadded(-1).Contains(x, y);
+  }
+};
+
+class BCAboutBox : public IVButtonControl
+{
+public:
+  BCAboutBox(const IRECT& bounds, IActionFunction aF = SplashClickActionFunc, const char* label = "", const IVStyle& style = DEFAULT_STYLE)
+    : IVButtonControl(bounds, aF, label, style)
+  {}
+
+  void DrawLabel(IGraphics& g) override
+  {
+    //DrawPressableRectangle(g, mWidgetBounds, (bool)GetValue(), mMouseIsOver, IsDisabled());
+
+    const char* textP = mLabelStr.Get();
+    WDL_String line;
+    float lineY = mWidgetBounds.T + 4;
+    float lineX = mWidgetBounds.L + 12;
+    while (true) {
+      const char* nextP = textP;
+      while (*nextP != 0 && *nextP != '\n') {
+        nextP++;
+      }
+
+      line.SetFormatted(nextP - textP, "%s", textP);
+      IRECT lineBounds = IRECT(0, 0, 1, 1);
+      g.MeasureText(mStyle.labelText, line.Get(), lineBounds);
+      lineBounds = IRECT::MakeXYWH(lineX, lineY, lineBounds.W(), lineBounds.H());
+      g.DrawText(mStyle.labelText, line.Get(), lineBounds);
+
+      // Update lineY and textP
+      lineY = lineBounds.B;
+      if (*nextP == 0) {
+        break;
+      }
+      else {
+        textP = nextP + 1;
+      }
+    }
+  }
+};
+#endif
 
 BigLittleGain::BigLittleGain(const InstanceInfo& info)
 : Plugin(info, MakeConfig(kNumParams, kNumPresets))
@@ -75,39 +130,101 @@ BigLittleGain::BigLittleGain(const InstanceInfo& info)
   };
   
   mLayoutFunc = [&](IGraphics* ui) {
-    ui->AttachCornerResizer(EUIResizerMode::Scale, false);
     ui->AttachPanelBackground(COLOR_BG_1);
     ui->LoadFont("Roboto-Regular", ROBOTO_FN);
+    ui->LoadFont("Roboto-Bold", ROBOTO_BOLD_FN);
+    ui->EnableMouseOver(true);
 
     const float TITLE_H = 40;
     const float ROW1_H = 100;
     const float ROW2_H = 24;
     const float PAD = 8;
+    const float OPT_BTN_SIZE = 10;
+    const float BOX_PAD = 4;
 
     const IRECT b = ui->GetBounds();
-    const IRECT rTitle = b.GetFromTop(60).GetPadded(-PAD);
-    const IRECT r1 = b.GetFromTop(ROW1_H).GetVShifted(TITLE_H);
-    const IRECT r2 = b.GetFromBottom(ROW2_H + PAD).GetPadded(-PAD);
+    const IRECT rMenuRow = b.GetFromTop(40).GetPadded(-PAD);
+    const IRECT rBlgTitle = rMenuRow.GetFromLeft(120);
+    const IRECT rOptionsMenuButton = rMenuRow.GetMidHPadded(OPT_BTN_SIZE).GetMidVPadded(OPT_BTN_SIZE);
+    const IRECT rTitle = rMenuRow.GetFromTop(40).GetVShifted(rMenuRow.H()).GetPadded(-PAD);
+    const IRECT r1 = rTitle.GetFromTop(ROW1_H).GetVShifted(rTitle.H());
     const IRECT r1Coarse = r1.GetGridCell(0, 1, 2).GetReducedFromRight(PAD * 2);
     const IRECT r1Fine = r1.GetGridCell(1, 1, 2).GetReducedFromLeft(PAD * 2);
     const IRECT separatorR = r1.GetMidHPadded(PAD / 2).GetVPadded(PAD);
+    const IRECT rAboutBox = b.GetPadded(-BOX_PAD, -BOX_PAD * 2, -BOX_PAD, -BOX_PAD);
+
+
+    auto pSizeMenu = new IPopupMenu("View Size");
+    WDL_String opt;
+    for (int i = 0; i < VIEW_SIZE_OPTIONS.size(); i++) {
+      opt.SetFormatted(10, "%d%%", VIEW_SIZE_OPTIONS[i]);
+      pSizeMenu->AddItem(opt.Get());
+    }
+
+    mMenu = new IPopupMenu("[root]");
+    mMenu->AddItem("View Size", pSizeMenu);
+    mMenu->AddItem(new IPopupMenu::Item("Open Homepage", 0, kMenuHomepage));
+    mMenu->AddSeparator();
+    mMenu->AddItem(new IPopupMenu::Item("About", 0, kMenuAbout));
+
+    mMenu->SetFunction([this](IPopupMenu* pop) {
+      if (pop->GetChosenItem() == nullptr || GetUI() == nullptr) {
+        return;
+      }
+      switch (pop->GetChosenItem()->GetTag())
+      {
+      case kMenuAbout:
+        GetUI()->GetControlWithTag(kCtrlAbout)->Hide(false);
+        break;
+      case kMenuHomepage:
+        GetUI()->OpenURL(PLUGIN_URL);
+        break;
+      }
+    });
+    pSizeMenu->SetFunction([this](IPopupMenu* pop) {
+      if (pop->GetChosenItem() == nullptr || GetUI() == nullptr) {
+        return;
+      }
+      int size = VIEW_SIZE_OPTIONS[pop->GetChosenItemIdx()];
+      const float scale = (float)size / 100.f;
+      GetUI()->Resize(PLUG_WIDTH, PLUG_HEIGHT, scale, true);
+    });
+
+
+    const auto blgTitleStyle = DEFAULT_STYLE
+      .WithValueText(IText(20.f, COLOR_TEXT, "Roboto-Bold"))
+      .WithColor(EVColor::kFG, COLOR_BG_1)
+      .WithDrawFrame(false)
+      .WithDrawShadows(false)
+      ;
+    auto blgTitle = new IVLabelControl(rBlgTitle, "Big Little Gain", blgTitleStyle);
+
+    const auto menuButtonStyle = DEFAULT_STYLE
+      .WithColors(IVColorSpec({ DEFAULT_BGCOLOR, COLOR_BG_2, COLOR_TRANSPARENT, COLOR_BG_3, COLOR_HL, COLOR_TRANSPARENT,
+        DEFAULT_X1COLOR, DEFAULT_X2COLOR, DEFAULT_X3COLOR }));
+    auto menuButtonClick = [this](IControl* ctrl) {
+      ctrl->GetUI()->CreatePopupMenu(*ctrl, *mMenu, ctrl->GetRECT());
+      DefaultClickActionFunc(ctrl);
+      //SplashClickActionFunc(ctrl);
+    };
+    auto menuButton = new MenuButton1(rOptionsMenuButton, menuButtonClick, menuButtonStyle);
 
     const auto styleTitle = DEFAULT_STYLE
       .WithDrawFrame(false)
       .WithDrawShadows(false)
       .WithValueText(DEFAULT_STYLE.labelText.WithFGColor(COLOR_TEXT).WithSize(20.0f))
       ;
-    auto titleLabelCoarse = new IVLabelControl(rTitle.GetGridCell(0, 1, 2), "Coarse", styleTitle);
-    auto titleLabelFine = new IVLabelControl(rTitle.GetGridCell(1, 1, 2), "Fine", styleTitle);
+    auto titleLabelCoarse = new IVLabelControl(IRECT(r1Coarse.L, rTitle.T, r1Coarse.R, rTitle.B), "Coarse", styleTitle);
+    auto titleLabelFine = new IVLabelControl(IRECT(r1Fine.L, rTitle.T, r1Fine.R, rTitle.B), "Fine", styleTitle);
 
     const auto separatorStyle = DEFAULT_STYLE
-      .WithColor(EVColor::kBG, COLOR_WHITE)
+      .WithColor(EVColor::kFG, COLOR_WHITE)
       .WithDrawFrame(false)
-      .WithRoundness(PAD)
+      .WithRoundness(PAD / 2)
       ;
 
     const auto style = DEFAULT_STYLE
-      .WithColor(EVColor::kFR, COLOR_WHITE)
+      .WithColor(EVColor::kFR, COLOR_TEXT)
       .WithColor(EVColor::kPR, COLOR_BG_2)
       .WithColor(EVColor::kFG, COLOR_BG_2)
       .WithColor(EVColor::kX1, COLOR_BG_1)
@@ -116,22 +233,20 @@ BigLittleGain::BigLittleGain(const InstanceInfo& info)
       ;
     auto sliderBigRange = new IVSliderControl(r1Coarse.GetGridCell(0, 1, 2), kPCoarseRange, "Range", style, true, EDirection::Vertical);
     auto knobCoarse = new IVKnobControl(r1Coarse.GetGridCell(1, 1, 2), kPCoarse, "Gain", style, true);
-    auto separator = new IVLabelControl(separatorR, "", separatorStyle);
+    auto separator = new VSep(separatorR, separatorStyle);
     auto knobFine = new IVKnobControl(r1Fine.GetGridCell(0, 1, 2), kPFine, "Gain", style, true);
     auto sliderLittleRange = new IVSliderControl(r1Fine.GetGridCell(1, 1, 2), kPFineRange, "Range", style, true, EDirection::Vertical);
 
-    const auto styleUrlButton = style
+    const auto aboutBoxStyle = style
+      .WithColor(EVColor::kBG, COLOR_BG_1)
       .WithColor(EVColor::kFG, COLOR_BG_1)
-      .WithLabelText(style.valueText)
-      .WithDrawFrame(false)
-      .WithDrawShadows(false)
+      .WithLabelText(style.labelText.WithAlign(EAlign::Near).WithSize(16.f))
       ;
-    auto textTitleAction = [ui](IControl* ctrl) {
-      ctrl->GetUI()->OpenURL(PLUGIN_URL, "Would you like to open this page?");
-      SplashClickActionFunc(ctrl);
-    };
-    auto textTitle = new TitleButton(r2, /*textTitleAction,*/ "big.little.gain   Copyright (c) BinderNews 2020", styleUrlButton);
+    auto aboutBox = new BCAboutBox(rAboutBox, [](IControl* ctrl) { ctrl->Hide(true); DefaultClickActionFunc(ctrl); }, ABOUT_BOX_TEXT, aboutBoxStyle);
+    aboutBox->Hide(true);
 
+    ui->AttachControl(blgTitle, kCtrlTitleText);
+    ui->AttachControl(menuButton, kCtrlMenuButton);
     ui->AttachControl(titleLabelCoarse, kCtrlTitleCoarse);
     ui->AttachControl(titleLabelFine, kCtrlTitleFine);
     ui->AttachControl(sliderBigRange, kCtrlBigSlider);
@@ -139,10 +254,11 @@ BigLittleGain::BigLittleGain(const InstanceInfo& info)
     ui->AttachControl(knobCoarse, kCtrlBigKnob);
     ui->AttachControl(knobFine, kCtrlLittleKnob);
     ui->AttachControl(sliderLittleRange, kCtrlLittleSlider);
-    ui->AttachControl(textTitle);
+    ui->AttachControl(aboutBox, kCtrlAbout);
   };
 #endif
 }
+
 
 #if IPLUG_EDITOR
 void BigLittleGain::OnParamChangeUI(int paramIdx, EParamSource source)
@@ -260,6 +376,8 @@ double BigLittleGain::getParamValue(int paramIdx) const
   case kPFineRange:
   case kPHighQuality:
     return GetParam(paramIdx)->Value();
+  default:
+    return 0.0;
   }
 }
 #endif
